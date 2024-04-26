@@ -58,6 +58,7 @@ bootloader/
 modules/
 tools/
 .DS_Store
+.west
 
 # Other
 ._*
