@@ -1,0 +1,13 @@
+
+&i2c0 {
+    mpu9250: mpu9250@68 {
+		compatible = "invensense,mpu9250";
+		reg = <0x68>;
+		vin-supply = <&mpu_pwr>;
+    gyro-sr-div = <20>;
+    gyro-fs = <250>;      // Full-scale +/- rads/s
+    gyro-dlpf = <10>;     // Cutoff at 10 Hz
+    accel-fs = <4>;       // Full-scale +/- 4g
+    accel-dlpf = "10.2";  // Cutoff 10.2 Hz
+	};
+};
