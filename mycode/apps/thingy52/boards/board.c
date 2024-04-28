@@ -37,7 +37,8 @@ static int pwr_ctrl_init(void)
 		return ret;
 	}
 
-    k_sleep(K_MSEC(100)); /* Wait for the rail to come up and stabilize */
+	/* Wait for the rail to come up and stabilize */
+    k_sleep(K_MSEC(100));
 
 	return 0;
 }
