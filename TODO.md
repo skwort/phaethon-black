@@ -4,7 +4,7 @@ This file tracks ongoing tasks, upcoming features, and bugs to fix for the `phae
 
 ## Flynn
 
-- [ ] Test reading in transponder packets with RTL-SDR / dump1090
+- [x] Test reading in transponder packets with RTL-SDR / dump1090
 - [ ] Develop ADS-B transponder signal processing functions which parse relevant data to nrf DK
 - [ ] Establish communication between Raspberry Pi and NRF52840 DK - using protobuf over UART
 - [ ] Design interface / display for M5core2
