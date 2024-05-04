@@ -64,3 +64,5 @@ tools/
 ._*
 .cache
 .vscode
+.venv
+__pycache__
