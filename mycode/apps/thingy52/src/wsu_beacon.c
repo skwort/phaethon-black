@@ -67,7 +67,6 @@ static const struct bt_le_adv_param wsu_adv_param = {
  */
 bool wsu_update_bt_adv_data(float *msg)
 {
-    
     uint8_t *bt_ad;
 
     /* Type-pun the msg */
