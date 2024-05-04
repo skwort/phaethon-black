@@ -13,6 +13,7 @@
  */
 
 #include "filter.h"
+#include "wsu_msg_api.h"
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
@@ -300,7 +301,14 @@ void wsu_mpu9250_thread(void)
         /* Convert yaw to 360 degree heading */
         heading = (yaw < 0) ? yaw + 360.0f : yaw;
 
-        printk("\np=%f r=%f y=%f", (double)pitch, (double)roll, (double)heading);
+        // printk("\np=%f r=%f y=%f", (double)pitch, (double)roll, (double)heading);
+
+        /* Send the message to the beacon thread */
+        float msg[3];
+        msg[0] = pitch;
+        msg[1] = roll;
+        msg[2] = heading;
+        wsu_msg_send(msg, K_NO_WAIT);
 
         k_sleep(K_MSEC(15));
     }
