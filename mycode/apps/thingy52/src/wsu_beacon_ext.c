@@ -1,3 +1,6 @@
+/* Only include this code if we are using the EXT implementation */
+#ifdef CONFIG_BT_EXT_ADV
+
 #include <stdio.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
@@ -252,3 +255,4 @@ void wsu_beacon_thread(void)
 
 K_THREAD_DEFINE(wsu_beacon, T_BEACON_STACKSIZE, wsu_beacon_thread, NULL, NULL,
                 NULL, T_BEACON_PRIORITY, 0, 0);
+#endif
