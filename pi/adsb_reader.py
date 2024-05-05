@@ -3,10 +3,14 @@ import requests
 import subprocess
 import threading
 import time
+import dlt
+import phaethon_pb2
 
 
 ADSB_DATA_SERVER_ADDRESS = "http://localhost:8080/data.json"
 DUMP1090_PATH = "../../dump1090/dump1090"
+
+UART_PORT = "/dev/serial/by-id/usb-SEGGER_J-Link_001050234086-if00"
 
 
 class LoggerThread(threading.Thread):
@@ -101,7 +105,21 @@ def is_same_adsb(a: dict, b: dict) -> bool:
     return False
 
 
-def mainloop(dump1090: subprocess.Popen):
+def pb_encode_adsb(adsb_dict: dict) -> str:
+    """ Encode the ADS-B packet dictionary into protobuf messsage bytes. """
+    adsb_pb = phaethon_pb2.ADSBData()
+    adsb_pb.hex = adsb_dict["hex"].strip()
+    adsb_pb.flight = adsb_dict["flight"].strip()
+    adsb_pb.lat = adsb_dict["lat"]
+    adsb_pb.lon = adsb_dict["lon"]
+    adsb_pb.altitude = adsb_dict["altitude"]
+    adsb_pb.track = adsb_dict["track"]
+    adsb_pb.speed = adsb_dict["speed"]
+
+    return adsb_pb.SerializeToString()
+
+
+def mainloop(dump1090: subprocess.Popen, dlt_if: dlt.DLTInterface):
 
     adsb_cache = {}
 
@@ -117,13 +135,18 @@ def mainloop(dump1090: subprocess.Popen):
             time.sleep(0.05)
             continue
 
-        # TODO: Encode data with protobuf and send to base node via UART
+        # Forward the data to the NRF board
         data = response.json()
         for d in data:
             h = d["hex"]
             if h not in adsb_cache or not is_same_adsb(d, adsb_cache[h]):
                 logging.info(f"New ADSB packet for {h}")
                 adsb_cache[h] = d
+
+                # Encode and send the ADS-B packet
+                adsb_bytes = pb_encode_adsb(d)
+                dlt_if.request(adsb_bytes)
+                logging.info("ADS-B packet requested via DLT interface.")
 
         # Sleep for 50ms
         time.sleep(0.05)
@@ -143,15 +166,24 @@ def main():
     time.sleep(3)
 
     try:
-        logging.info("Starting main loop")
-        mainloop(dump1090)
+        logging.info("Creating DLT interface.")
+        dlt_if = dlt.DLTInterface(backend="serial", port=UART_PORT)
+
+        logging.info("Starting main loop.")
+        mainloop(dump1090, dlt_if)
 
     except KeyboardInterrupt:
-        logging.info("Keyboard interrupt received. Terminating dump1090")
+        logging.info("Keyboard interrupt received.")
+        logging.info("Terminating dump1090.")
         dump1090_logger.stop()
         dump1090_logger.join()
         dump1090.terminate()
-        logging.info("Exiting")
+        dump1090_logger.stop()
+
+        logging.info("Closing DLT Interface.")
+        dlt_if.close()
+
+        logging.info("Exiting.")
 
 
 if __name__ == "__main__":
