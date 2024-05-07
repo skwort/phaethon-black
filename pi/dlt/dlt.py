@@ -68,13 +68,13 @@ class DLTBackend(threading.Thread):
                 return None, None
 
             if count == 0:
-                if int.from_bytes(byte) != DLT_PREAMBLE:
+                if int.from_bytes(byte, "little") != DLT_PREAMBLE:
                     return None, None
                 logger.info("DLT packet received.")
             elif count == 1:
-                msg_code = int.from_bytes(byte)
+                msg_code = int.from_bytes(byte, "little")
             elif count == 2:
-                dlt_length = int.from_bytes(byte)
+                dlt_length = int.from_bytes(byte, "little")
             else:
                 data += byte
 
@@ -156,7 +156,7 @@ class SerialBackend(DLTBackend):
 
     def _connect(self, baudrate=115200) -> None:
         """ Connect to the device using the specified port """
-        self._conn = serial.Serial(self.port, baudrate, timeout=0.25)
+        self._conn = serial.Serial(self.port, baudrate, timeout=0.1)
         self._conn.reset_input_buffer()
 
     def _disconnect(self):
