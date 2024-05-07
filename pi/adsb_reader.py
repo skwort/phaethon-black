@@ -8,7 +8,7 @@ import phaethon_pb2
 
 
 ADSB_DATA_SERVER_ADDRESS = "http://localhost:8080/data.json"
-DUMP1090_PATH = "../../dump1090/dump1090"
+DUMP1090_PATH = "./dump1090/dump1090"
 
 UART_PORT = "/dev/serial/by-id/usb-SEGGER_J-Link_001050234086-if00"
 

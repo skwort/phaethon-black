@@ -16,12 +16,12 @@ Now install the dependencies:
 pip install -r requirements.txt
 ```
 
-Next, install `dump1090`:
+Next, build `dump1090`:
 ```
-git clone git@github.com:antirez/dump1090.git 
 cd dump1090
 make
 ```
+You may need to install the relevant RTL-SDR drivers.
 
 ## Configuration
 Adjust the following variables in `adsb_reader.py` as necessary:
