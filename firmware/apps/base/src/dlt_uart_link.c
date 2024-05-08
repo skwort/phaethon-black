@@ -10,24 +10,15 @@
 #define DLT_COMMS_STACKSIZE 1024
 #define DLT_COMMS_PRIORITY  6
 
-/* DLT COMMS State Machine States */
-#define DLT_COMMS_IDLE             0
-#define DLT_COMMS_RESPONSE_PENDING 1
-
-/* Buffer sizes */
-#define DLT_UART_RX_BUF_LEN   100
-#define DLT_RECV_BUF_LEN      100
-#define DLT_SEND_BUF_LEN      100 
-
-#define DLT_RX_TIMEOUT (25 * USEC_PER_MSEC)
+/* Timeout for UART DMA */
+#define DLT_UART_RX_TIMEOUT (10 * USEC_PER_MSEC)
 
 LOG_MODULE_REGISTER(dlt_uart_link, LOG_LEVEL_INF);
 
-// UART callback prototype
-static void uart_cb(const struct device *dev, struct uart_event *evt,
-                    void *user_data);
+/* UART DMA Semaphore for data reception */
+K_SEM_DEFINE(dlt_rx_sem, 0, 1);
 
-/* UART device reference*/
+/* UART device reference */
 #ifdef CONFIG_SHELL_BACKEND_RTT
 static const struct device *dlt_uart =
     DEVICE_DT_GET(DT_CHOSEN(zephyr_shell_uart));
@@ -35,11 +26,9 @@ static const struct device *dlt_uart =
 static const struct device *dlt_uart = DEVICE_DT_GET(DT_ALIAS(dlt_uart));
 #endif
 
-/* DLT COMMS state variable*/
-static uint8_t dlt_comms_state = DLT_COMMS_IDLE;
-
-/* UART DMA Semaphore for data reception */
-K_SEM_DEFINE(dlt_rx_sem, 0, 1);
+/* UART callback prototype */
+static void uart_cb(const struct device *dev, struct uart_event *evt,
+                    void *user_data);
 
 /* Intialise the DLT UART Link thread */
 extern void dlt_uart_init()
@@ -51,35 +40,34 @@ extern void dlt_uart_init()
     }
 }
 
-/*
+/**
  * Thread function for DLT Communication.
- *
- * @brief This is a state machine with and IDLE and PENDING state. The IDLE
- *        state waits for DLT packets to appear in the DLT mailbox. Upon
- *        receiving mail, the thread sends the DLT packet via UART and
- *        transitions into the PENDING state. In the pending state, the thread
- *        waits for a response via UART.
+ * 
+ * @brief Periodically polls the DLT interface for packets to transmit and 
+ *        forwards any received packets.
  */
 void dlt_uart_thread(void)
 {
+    /* Initialise the UART peripheral and register Link with DLT driver */
     k_tid_t link_tid = k_current_get();
     dlt_uart_init();
     dlt_link_register(PI_UART, link_tid);
 
-    uint8_t dlt_recv_buf[DLT_RECV_BUF_LEN] = {0};
-    uint8_t uart_recv_buffer[DLT_UART_RX_BUF_LEN] = {0};
+    /* Buffers */
+    uint8_t dlt_recv_buf[DLT_MAX_PACKET_LEN] = {0};
+    uint8_t uart_recv_buffer[DLT_MAX_PACKET_LEN] = {0};
+
+    /* State variables */
+    bool rx_on = false;
+    int ret = 0;
+
+    /* Sleep to let the main thread setup DLT */
     k_sleep(K_MSEC(100));
 
     while (1) {
-        uint8_t msg_len;
-        switch (dlt_comms_state) {
-        case DLT_COMMS_IDLE:
-            /* Poll DLT Interface for packets to transmit */
-            msg_len = dlt_poll(PI_UART, dlt_recv_buf, 50, K_FOREVER);
-            if (!msg_len) {
-                break;
-            }
-
+        /* Poll DLT Interface for packets to transmit */
+        uint8_t msg_len = dlt_poll(PI_UART, dlt_recv_buf, 50, K_MSEC(5));
+        if (msg_len) {
             LOG_INF("DLT mail received.");
 
             /* Transmit the DLT packet via UART */
@@ -87,40 +75,31 @@ void dlt_uart_thread(void)
             for (int i = 0; i < msg_len; i++) {
                 LOG_INF("  packet[%i]: %" PRIx8, i, dlt_recv_buf[i]);
             }
-            int ret =
-                uart_tx(dlt_uart, dlt_recv_buf, msg_len, SYS_FOREVER_US);
+            ret = uart_tx(dlt_uart, dlt_recv_buf, msg_len, SYS_FOREVER_US);
             if (ret) {
                 LOG_ERR("DLT UART transmission failed.");
                 break;
             }
+        }
 
+        /* Receive DLT messsages */ 
+        if (!rx_on) {
             /* Start UART RX */
             ret = uart_rx_enable(dlt_uart, uart_recv_buffer,
-                                 DLT_UART_RX_BUF_LEN, DLT_RX_TIMEOUT);
+                                 DLT_MAX_PACKET_LEN, DLT_UART_RX_TIMEOUT);
             if (ret) {
-                LOG_ERR("DLT RX enable failed.");
+                LOG_ERR("DLT UART RX enable failed.");
                 break;
             }
+            rx_on = true;
 
-            dlt_comms_state = DLT_COMMS_RESPONSE_PENDING;
-            break;
-
-        case DLT_COMMS_RESPONSE_PENDING:
-            /* Wait for UART DMA RX completion signal */
-            if (k_sem_take(&dlt_rx_sem, K_MSEC(100)) != 0) {
-                break;
-            }
-
-            LOG_INF("Response received, submitting.");
-            dlt_submit(PI_UART, uart_recv_buffer, uart_recv_buffer[2] + 3, false);
-
-            /* Back to IDLE state */
-            dlt_comms_state = DLT_COMMS_IDLE;
-            break;
-
-        default:
-            dlt_comms_state = DLT_COMMS_IDLE;
-            break;
+        } else if (rx_on && (k_sem_take(&dlt_rx_sem, K_NO_WAIT) == 0)) {
+            /* Submit the whole packet to DLT interface */
+            LOG_INF("DLT UART packet received, %d bytes. Submitting.",
+                    uart_recv_buffer[2] + DLT_PROTOCOL_BYTES);
+            dlt_submit(PI_UART, uart_recv_buffer,
+                       uart_recv_buffer[2] + DLT_PROTOCOL_BYTES, true);
+            rx_on = false;
         }
         k_sleep(K_MSEC(5));
     }
@@ -153,14 +132,14 @@ static void uart_cb(const struct device *dev, struct uart_event *evt,
         break;
 
     case UART_RX_STOPPED:
-        LOG_ERR("UART DMA ERROR.");
+        LOG_ERR("DLT UART DMA ERROR.");
         break;
 
     case UART_RX_BUF_REQUEST:
         break;
 
     case UART_RX_BUF_RELEASED:
-        LOG_INF("UART DMA reception complete.");
+        LOG_INF("DLT UART DMA reception complete.");
         LOG_INF("Signalling thread.");
         k_sem_give(&dlt_rx_sem);
         break;

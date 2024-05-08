@@ -6,21 +6,11 @@
 
 LOG_MODULE_REGISTER(dlt_api, LOG_LEVEL_INF);
 
-/* DLT Protocol Codes */
-#define DLT_PREAMBLE 0x77
-#define DLT_REQUEST_CODE 0x01
-#define DLT_RESPONSE_CODE 0x02
-
-/* DLT targets for Mailbox messages */
-#define DLT_TARGET_DEVICE 0x01
-#define DLT_TARGET_LINK   0x02
-
 /* Mailbox array for endpoints */
 struct k_mbox eps[DLT_NUM_ENDPOINTS];
 static k_tid_t link_tids[DLT_NUM_ENDPOINTS];
 
 static k_tid_t device_tid;
-
 
 /* Initialise the interface */
 extern bool dlt_interface_init(uint8_t num_endpoints)
@@ -71,12 +61,12 @@ static inline uint8_t dlt_generate_packet(uint8_t *packet, uint8_t msg_type,
 
 /* Generic method for sending packets via mailbox */
 static inline void dlt_send(uint8_t ep, uint8_t *packet,
-                            uint8_t packet_len, uint8_t target,
+                            uint8_t packet_len, uint8_t msg_type,
                             k_tid_t send_tid, bool async)
 {
     /* Create mailbox message */
     struct k_mbox_msg send_msg;
-    send_msg.info = target;
+    send_msg.info = msg_type;
     send_msg.size = packet_len;
     send_msg.tx_data = packet;
     send_msg.tx_target_thread = send_tid;
@@ -105,29 +95,29 @@ extern void dlt_request(uint8_t ep, uint8_t *packet, uint8_t *data, uint8_t data
                                              data, data_len);
 
     /* Submit the packet to the Link for transfer */
-    dlt_send(ep, packet, packet_len, DLT_TARGET_LINK, link_tids[ep], async);
+    dlt_send(ep, packet, packet_len, DLT_REQUEST_CODE, link_tids[ep], async);
 }
 
-extern void dlt_respond(uint8_t ep, uint8_t *data, uint8_t data_len, bool async)
+extern void dlt_respond(uint8_t ep, uint8_t *packet, uint8_t *data, uint8_t data_len, bool async)
 {
     /* Create the DLT packet */
-    uint8_t packet[DLT_MAX_PACKET_LEN] = {0};
     uint8_t packet_len = dlt_generate_packet(packet, DLT_RESPONSE_CODE,
                                              data, data_len);
 
     /* Submit the packet to the Link for transfer */
-    dlt_send(ep, packet, packet_len, DLT_TARGET_LINK, link_tids[ep], async);
+    dlt_send(ep, packet, packet_len, DLT_RESPONSE_CODE, link_tids[ep], async);
 }
 
 /* Submits the packet to the DLT interface for a Device to read */
 extern void dlt_submit(uint8_t ep, uint8_t *packet, uint8_t packet_len,
                        bool async)
 {
-    dlt_send(ep, packet, packet_len, DLT_TARGET_DEVICE, device_tid, async);
+    uint8_t msg_type = packet[1];
+    dlt_send(ep, packet, packet_len, msg_type, device_tid, async);
 }
 
-extern uint8_t dlt_read(uint8_t ep, uint8_t *data, uint8_t data_len,
-                        k_timeout_t timeout)
+extern uint8_t dlt_read(uint8_t ep, uint8_t *msg_type, uint8_t *data,
+                        uint8_t data_len, k_timeout_t timeout)
 {
     struct k_mbox_msg recv_msg;
     recv_msg.size = 100;
@@ -135,13 +125,6 @@ extern uint8_t dlt_read(uint8_t ep, uint8_t *data, uint8_t data_len,
 
     /* Wait to get message, but don't consume it */
     if (k_mbox_get(&eps[ep], &recv_msg, NULL, timeout)) {
-        return 0;
-    }
-
-    /* Ignore the message if its not intended for a Device */
-    if (recv_msg.info != DLT_TARGET_DEVICE) {
-        /* Consume the message and resend it. */
-        LOG_ERR("Message not intended for DEVICE.");
         return 0;
     }
 
@@ -154,6 +137,9 @@ extern uint8_t dlt_read(uint8_t ep, uint8_t *data, uint8_t data_len,
         LOG_ERR("Message receive error. Data segment is too big.");
         return 0;
     }
+
+    /* Get the message type */
+    *msg_type = recv_msg.info;
 
     /* Copy the packet's data segment into data */
     for (int i = 0; i < recv_msg.size - DLT_PROTOCOL_BYTES; i++) {
@@ -172,12 +158,6 @@ extern uint8_t dlt_poll(uint8_t ep, uint8_t *packet, uint8_t packet_len,
 
     /* Wait to get message, but don't consume it */
     if (k_mbox_get(&eps[ep], &recv_msg, NULL, timeout)) {
-        return 0;
-    }
-
-    /* Ignore the message if its not intended for a Link */
-    if (recv_msg.info != DLT_TARGET_LINK) {
-        LOG_ERR("Message not intended for Link.");
         return 0;
     }
 
