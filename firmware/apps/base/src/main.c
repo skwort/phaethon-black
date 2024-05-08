@@ -1,23 +1,23 @@
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
-#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/shell/shell.h>
-#include <zephyr/usb/usb_device.h>
 #include <pb_encode.h>
 #include <pb_decode.h>
 
+#ifdef CONFIG_SHELL_BACKEND_RTT
+#include <zephyr/shell/shell_rtt.h>
+#else
+#include <zephyr/shell/shell.h>
+#endif
+
 #include "dlt_api.h"
 #include "dlt_endpoints.h"
+#include "base_bt.h"
 #include "phaethon.pb.h"
 
 LOG_MODULE_REGISTER(base_main);
 
-/* 1000 msec = 1 sec */
-#define SLEEP_TIME_MS 1000
-
-/* get uart device reference */
-const struct device *uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
 
 int main(void)
 {
@@ -25,10 +25,13 @@ int main(void)
     dlt_interface_init(1);
     dlt_device_register(device_tid);
 
-    if (!device_is_ready(uart)) {
-        printk("UART device not ready\r\n");
-        return 1;
-    }
+    /* Connect to the Thingy52 */
+    LOG_INF("Connecting to Thingy52");
+#ifdef CONFIG_SHELL_BACKEND_RTT
+    shell_execute_cmd(shell_backend_rtt_get_ptr(), "blecon -s c8:91:07:19:03:58");
+#else
+    shell_execute_cmd(shell_backend_uart_get_ptr(), "blecon -s c8:91:07:19:03:58");
+#endif
 
     uint8_t rx_data[DLT_MAX_DATA_LEN] = {0};
     uint8_t resp_len = 0;
@@ -39,38 +42,44 @@ int main(void)
         /* Check the PI UART Link for data */
         resp_len = dlt_read(PI_UART, &msg_type, rx_data, DLT_MAX_DATA_LEN,
                             K_NO_WAIT);
-        if (!resp_len) {
-            k_sleep(K_MSEC(5));
-            continue;
+        if (resp_len) {
+
+            /* Decode message */
+            bool status;
+
+            /* Allocate space for the decoded message. */
+            ADSBData message = ADSBData_init_zero;
+
+            /* Create a stream that reads from the buffer. */
+            pb_istream_t stream = pb_istream_from_buffer(rx_data, resp_len);
+
+            /* Now we are ready to decode the message. */
+            status = pb_decode(&stream, ADSBData_fields, &message);
+
+            /* Check for errors */
+            if (status) {
+                /* Print the data contained in the message. */
+                LOG_INF("hex: %s", (char *)message.hex);
+                LOG_INF("flight: %s", message.flight);
+                LOG_INF("lat: %f", (double)message.lat);
+                LOG_INF("lon: %f", (double)message.lon);
+                LOG_INF("alt: %d", message.altitude);
+                LOG_INF("speed: %d", message.speed);
+                LOG_INF("track: %d", message.track);
+            } else {
+                LOG_ERR("Decoding failed: %s\n", PB_GET_ERROR(&stream));
+            }
         }
 
-        /* Decode message */
-        bool status;
-
-        /* Allocate space for the decoded message. */
-        ADSBData message = ADSBData_init_zero;
-
-        /* Create a stream that reads from the buffer. */
-        pb_istream_t stream = pb_istream_from_buffer(rx_data, resp_len);
-
-        /* Now we are ready to decode the message. */
-        status = pb_decode(&stream, ADSBData_fields, &message);
-
-        /* Check for errors */
-        if (status) {
-            /* Print the data contained in the message. */
-            LOG_INF("hex: %s", (char *)message.hex);
-            LOG_INF("flight: %s", message.flight);
-            LOG_INF("lat: %f", (double)message.lat);
-            LOG_INF("lon: %f", (double)message.lon);
-            LOG_INF("alt: %d", message.altitude);
-            LOG_INF("speed: %d", message.speed);
-            LOG_INF("track: %d", message.track);
-        } else {
-            LOG_ERR("Decoding failed: %s\n", PB_GET_ERROR(&stream));
+        /* Check IMU data */
+        wsu_data_packet pkt; 
+        if (!base_bt_wsu_data_recv(&pkt, K_NO_WAIT)) {
+            /* Print the packet */
+            LOG_INF("p %f, r %f, y %f", (double)pkt.pitch,
+                    (double)pkt.roll, (double)pkt.yaw);
         }
 
-        k_sleep(K_MSEC(5));
+        k_sleep(K_MSEC(3));
     }
 
     return 0;

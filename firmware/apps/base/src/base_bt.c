@@ -1,12 +1,12 @@
-#include "base_bt.h"
 #include "zephyr/bluetooth/addr.h"
 #include "zephyr/bluetooth/gap.h"
-#include <sys/_stdint.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(base_bt_module);
+#include "base_bt.h"
+
+LOG_MODULE_REGISTER(base_bt_module, LOG_LEVEL_ERR);
 
 /* Thread parameters */
 #define T_BASE_BT_STACKSIZE 1024
@@ -24,8 +24,11 @@ LOG_MODULE_REGISTER(base_bt_module);
 #define WSU_BT_DATA_ROLL_START_IDX  16
 #define WSU_BT_DATA_YAW_START_IDX   20
 
-/* Define the message queue */
+/* Define the message queue BT state machine commands */
 K_MSGQ_DEFINE(base_bt_cmdq, sizeof(base_bt_cmd_t), 2, 1);
+
+/* Define the message queue for passing WSU data */
+K_MSGQ_DEFINE(wsu_dataq, sizeof(wsu_data_packet), 10, 1);
 
 /* BASE BT State variable */
 static uint8_t base_bt_state = BASE_BT_IDLE_STATE;
@@ -45,6 +48,18 @@ static inline int base_bt_cmd_recv(base_bt_cmd_t *cmd, k_timeout_t timeout)
     return k_msgq_get(&base_bt_cmdq, cmd, timeout);
 }
 
+/* Send a cmd via the cmd queue */
+static inline void base_bt_wsu_data_send(wsu_data_packet *pkt, k_timeout_t timeout)
+{
+    k_msgq_put(&wsu_dataq, pkt, timeout);
+}
+
+/* Receive a message from the cmd queue */
+extern int base_bt_wsu_data_recv(wsu_data_packet *pkt, k_timeout_t timeout)
+{
+    return k_msgq_get(&wsu_dataq, pkt, timeout);
+}
+
 /* Initialise Bluetooth */
 static inline bool base_bt_init(void)
 {
@@ -56,19 +71,6 @@ static inline bool base_bt_init(void)
     return true;
 }
 
-#ifdef CONFIG_BT_EXT_ADV
-typedef struct wsu_data_packet {
-    uint8_t type;
-    float value;
-} wsu_data_packet;
-#else
-typedef struct wsu_data_packet {
-    uint16_t sequence;
-    float pitch;
-    float roll;
-    float yaw;
-} wsu_data_packet;
-#endif
 
 static bool conn_data_cb(struct bt_data *data, void *user_data)
 {
@@ -97,11 +99,11 @@ static bool conn_data_cb(struct bt_data *data, void *user_data)
 
     /* Print the packet */
     if (p->type == 0x01) {
-        printk("pitch: %f\n", (double)p->value);
+        LOG_INF("pitch: %f\n", (double)p->value);
     } else if (p->type == 0x02) {
-        printk("roll: %f\n", (double)p->value);
+        LOG_INF("roll: %f\n", (double)p->value);
     } else if (p->type == 0x03) {
-        printk("yaw: %f\n", (double)p->value);
+        LOG_INF("yaw: %f\n", (double)p->value);
     }
     #else
     wsu_data_packet *p = user_data;
@@ -135,7 +137,7 @@ static bool conn_data_cb(struct bt_data *data, void *user_data)
     p->yaw = packet.f;
 
     /* Print the packet */
-    printk("seq %" PRIu16 " p %f, r %f, y %f\n", p->sequence, (double)p->pitch,
+    LOG_INF("seq %" PRIu16 " p %f, r %f, y %f\n", p->sequence, (double)p->pitch,
             (double)p->roll, (double)p->yaw);
     #endif
 
@@ -170,7 +172,10 @@ static void ble_conn_recv(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
     /* Parse the WSU data */
     wsu_data_packet packet;
     bt_data_parse(ad, conn_data_cb, &packet);
-
+    
+    /* Send it to the main thread */
+    base_bt_wsu_data_send(&packet, K_MSEC(1));
+    
 }
 
 /* State machine which bakes the Bluetooth API cmds into transition logic. */
