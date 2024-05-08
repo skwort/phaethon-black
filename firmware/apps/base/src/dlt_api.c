@@ -21,7 +21,6 @@ static k_tid_t link_tids[DLT_NUM_ENDPOINTS];
 
 static k_tid_t device_tid;
 
-
 /* Initialise the interface */
 extern bool dlt_interface_init(uint8_t num_endpoints)
 {

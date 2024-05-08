@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+message ADSBData {
+  string hex = 1;
+  string flight = 2;
+  float lat = 3;
+  float lon = 4;
+  uint32 altitude = 5;
+  uint32 track = 6;
+  uint32 speed = 7;
+}
+
+message Acknowledge {
+  bool ok = 1;
+}
