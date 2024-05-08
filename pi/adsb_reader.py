@@ -87,19 +87,21 @@ def get_dump1090_data():
 
 def is_same_adsb(a: dict, b: dict) -> bool:
     """
-    Check if two ADS-B packets have the same location and altitude.
+    Check if two ADS-B packets have the same fields.
 
     Args:
         a (dict): The first ADS-B packet.
         b (dict): The second ADS-B packet.
 
     Returns:
-        bool: True if packets have the same lat, lon, and alt. False otherwise.
+        bool: True if packets have the same fields. False otherwise.
     """
     same_lat = a["lat"] == b["lat"]
     same_long = a["lon"] == b["lon"]
     same_alt = a["altitude"] == b["altitude"]
-    if same_lat and same_long and same_alt:
+    same_speed = a["speed"] == b["speed"]
+    same_track = a["track"] == b["track"]
+    if same_lat and same_long and same_alt and same_speed and same_track:
         return True
 
     return False
