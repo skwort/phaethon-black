@@ -1,0 +1,1 @@
+zephyr_sources(dlt_api.c)
