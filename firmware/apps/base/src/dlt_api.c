@@ -2,20 +2,19 @@
 #include <zephyr/logging/log.h>
 
 #include "dlt_api.h"
-#include "dlt_endpoints.h"
 
 LOG_MODULE_REGISTER(dlt_api, LOG_LEVEL_INF);
 
 /* Mailbox array for endpoints */
-struct k_mbox eps[DLT_NUM_ENDPOINTS];
-static k_tid_t link_tids[DLT_NUM_ENDPOINTS];
+struct k_mbox eps[DLT_MAX_ENDPOINTS];
+static k_tid_t link_tids[DLT_MAX_ENDPOINTS];
 
 static k_tid_t device_tid;
 
 /* Initialise the interface */
 extern bool dlt_interface_init(uint8_t num_endpoints)
 {
-    if (num_endpoints > DLT_NUM_ENDPOINTS) {
+    if (num_endpoints > DLT_MAX_ENDPOINTS) {
         LOG_ERR("Too many endpoints.");
         return false;
     }

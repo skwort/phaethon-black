@@ -28,6 +28,7 @@
 #define DLT_MAX_PACKET_LEN 50 
 #define DLT_PROTOCOL_BYTES 3  // don't change
 #define DLT_MAX_DATA_LEN   DLT_MAX_PACKET_LEN - DLT_PROTOCOL_BYTES
+#define DLT_MAX_ENDPOINTS 3
 
 /* DLT Protocol Codes */
 #define DLT_PREAMBLE 0x77
