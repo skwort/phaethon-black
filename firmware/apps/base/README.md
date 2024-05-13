@@ -143,3 +143,29 @@ int main(void)
     return 0;
 }
 ```
+
+### GPS Module Interfacing
+
+CONNECTION - i2c SCL - PO27, i2c SDA PO26
+
+CONF INCLUDES: just i2c, piggybacks off existing log messages
+
+DATA STRUCT: has a valid (0 means not relevant) bool and then latitude and longitude values. Disregard any lat / long data unless the bool is 1 (sattelite lock)
+
+REQUIRED OVERLAY:
+```
+&i2c0 {
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+};
+
+
+&pinctrl {
+    i2c0_default: i2c0_default {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
+				<NRF_PSEL(TWIM_SCL, 0, 27)>;
+            bias-pull-up;
+		};
+	};
+};
+```
