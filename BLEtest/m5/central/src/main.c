@@ -13,7 +13,11 @@
 
 #include <zephyr/bluetooth/services/nus.h>
 
-#define TARGET_ADDR_STR "FF:A2:86:CD:34:66"
+static void start_scan(void);
+
+/* CHANGE ADDRESS AS REQUIRED - find in peripheral code */
+//#define TARGET_ADDR_STR "FF:A2:86:CD:34:66" // address of peripheral - flynns nrf board
+#define TARGET_ADDR_STR "78:21:84:8D:E1:38" // m5stackcore2 board
 static bt_addr_le_t target_addr;
 
 #define BT_UUID_NUS BT_UUID_DECLARE_128(0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x01, 0x00, 0x40, 0x6E)
@@ -26,6 +30,7 @@ static struct bt_conn *default_conn;
 static struct bt_uuid_128 nus_uuid = BT_UUID_INIT_128(BT_UUID_NUS_SRV_VAL);
 static struct bt_gatt_discover_params discover_params;
 static struct bt_gatt_subscribe_params subscribe_params;
+
 
 static uint8_t notify_func(struct bt_conn *conn,
 			   struct bt_gatt_subscribe_params *params,
@@ -152,7 +157,10 @@ static uint8_t discover_func(struct bt_conn *conn,
 
 static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
                          struct net_buf_simple *ad)
-{
+{   
+    char addr_str[BT_ADDR_LE_STR_LEN];
+	int err;
+
     if (default_conn) {
         return;
     }
@@ -161,21 +169,40 @@ static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
         return;
     }
 
-	// COMPARES TO ADDRESS
-    if (!bt_addr_le_cmp(addr, &target_addr)) {
-        printk("Target device found, RSSI %d\n", rssi);
+    bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
+	printk("Device found: %s (RSSI %d)\n", addr_str, rssi);
 
-        if (rssi < -50) {
-            return;
-        }
+	/* connect only to devices in close proximity */
+	if (rssi < -50) {
+		return;
+	}
 
-        if (bt_le_scan_stop() == 0) {
-            if (bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN,
-                                  BT_LE_CONN_PARAM_DEFAULT, &default_conn)) {
-                printk("Failed to initiate connection\n");
-            }
-        }
-    }
+	if (bt_le_scan_stop()) {
+		return;
+	}
+
+	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN,
+				BT_LE_CONN_PARAM_DEFAULT, &default_conn);
+	if (err) {
+		printk("Create conn to %s failed (%d)\n", addr_str, err);
+		start_scan();
+	}
+
+	/* CUSTOM ADDRESS STUFF */
+    // if (!bt_addr_le_cmp(addr, &target_addr)) {
+    //     printk("Target device found, RSSI %d\n", rssi);
+
+    //     if (rssi < -50) {
+    //         return;
+    //     }
+
+    //     if (bt_le_scan_stop() == 0) {
+    //         if (bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN,
+    //                               BT_LE_CONN_PARAM_DEFAULT, &default_conn)) {
+    //             printk("Failed to initiate connection\n");
+    //         }
+    //     }
+    // }
 }
 
 static void start_scan(void)
@@ -183,10 +210,10 @@ static void start_scan(void)
     int err;
 
     // Convert target address from string
-    if (bt_addr_le_from_str(TARGET_ADDR_STR, "random", &target_addr)) {
-        printk("Invalid target Bluetooth address!\n");
-        return;
-    }
+    // if (bt_addr_le_from_str(TARGET_ADDR_STR, "random", &target_addr)) {
+    //     printk("Invalid target Bluetooth address!\n");
+    //     return;
+    // }
 
     // Start scanning
     err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, device_found);

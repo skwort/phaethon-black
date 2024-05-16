@@ -20,6 +20,27 @@ static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_SRV_VAL),
 };
 
+static void print_bt_address(void)
+{
+    bt_addr_le_t addrs[CONFIG_BT_ID_MAX];
+    size_t count = CONFIG_BT_ID_MAX;
+
+    bt_id_get(addrs, &count);
+
+    if (count == 0) {
+        printk("No Bluetooth address found\n");
+        return;
+    }
+
+    char addr_str[BT_ADDR_LE_STR_LEN];
+    for (size_t i = 0; i < count; i++) {
+        bt_addr_le_to_str(&addrs[i], addr_str, sizeof(addr_str));
+        printk("Bluetooth Address %zu: %s\n", i, addr_str);
+    }
+}
+
+
+
 static void notif_enabled(bool enabled, void *ctx)
 {
 	ARG_UNUSED(ctx);
@@ -60,6 +81,8 @@ int main(void)
 		printk("Failed to enable bluetooth: %d\n", err);
 		return err;
 	}
+
+	print_bt_address();
 
 	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err) {
