@@ -14,6 +14,7 @@
 #include "dlt_api.h"
 #include "dlt_endpoints.h"
 #include "base_bt.h"
+#include "base_gps.h"
 #include "phaethon.pb.h"
 
 LOG_MODULE_REGISTER(base_main);
@@ -36,6 +37,8 @@ int main(void)
     uint8_t rx_data[DLT_MAX_DATA_LEN] = {0};
     uint8_t resp_len = 0;
     uint8_t msg_type = 0;
+    wsu_data_packet pkt; 
+    gps_base_data gps;
 
     while (true) {
 
@@ -72,11 +75,19 @@ int main(void)
         }
 
         /* Check IMU data */
-        wsu_data_packet pkt; 
         if (!base_bt_wsu_data_recv(&pkt, K_NO_WAIT)) {
             /* Print the packet */
             LOG_INF("p %f, r %f, y %f", (double)pkt.pitch,
                     (double)pkt.roll, (double)pkt.yaw);
+        }
+
+        /* Check GPS data */
+        if (!base_gps_i2c_data_recv(&gps, K_NO_WAIT)) {
+                if (gps.good_data) {
+                    LOG_INF("lat: %f, lon %f", (double)gps.latitude, (double)gps.longitude);
+                } else {
+                    LOG_INF("GPS data is bad.");
+                }
         }
 
         k_sleep(K_MSEC(3));

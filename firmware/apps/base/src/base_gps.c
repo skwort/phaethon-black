@@ -13,14 +13,14 @@
 
 #include "base_gps.h"
 
-LOG_MODULE_REGISTER(gps_module, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(gps_module, LOG_LEVEL_ERR);
 
 /* Zephyr Handlers */
 #define UART_DEVICE_NODE DT_CHOSEN(zephyr_shell_uart)
 #define I2C_DEVICE_NODE DT_NODELABEL(i2c0) 
 
 /* Thread Parameters */
-#define T_BASE_GPS_STACKSIZE 1024 * 4
+#define T_BASE_GPS_STACKSIZE 2048 
 #define T_BASE_GPS_PRIORITY  7
 
 /* GPS i2C */
@@ -50,7 +50,6 @@ int base_gps_i2c_data_recv(gps_base_data *gps_struct, k_timeout_t timeout) {
     return k_msgq_get(&gps_base_msgq, gps_struct, timeout);
 
 }
-
 
 /* *** FUNCTIONS WHICH RUN IN THREAD *** */
 bool gps_init(const struct device *dev) {
@@ -265,7 +264,7 @@ void base_gps_thread(void)
 
         // send data via msgqueue
         k_msgq_put(&gps_base_msgq, &gps_data_struct, K_MSEC(3000));
-        
+
         // delay for relevant time (let titanX1 buffer fill)
         k_sleep(K_MSEC(2000));
 
@@ -273,42 +272,5 @@ void base_gps_thread(void)
 }
 
 
-K_THREAD_DEFINE(base_gps, T_BASE_GPS_STACKSIZE, base_gps_thread, NULL, NULL, NULL, T_BASE_GPS_PRIORITY, 0, 0);
-
-
-/* SOME MAIN CODE TO TEST THE FUNCTIONALITY */
-
-/*
- * flynnmkelly
- */
-
-// /* TESTING RECEIVING DATA VIA THE MESSAGE QUEUE */
-// #include <zephyr/kernel.h>
-// #include <zephyr/logging/log.h>
-
-// #include "base_gps.h"
-
-// LOG_MODULE_REGISTER(main);
-
-// int main(void)
-// {
-//     gps_base_data gps_data_main;
-//     k_timeout_t timeout = K_MSEC(5000);  // 5-second timeout for non-blocking behavior
-//     LOG_INF("Starting main thread.");
-
-//     while (true) {
-//         int ret = base_gps_i2c_data_recv(&gps_data_main, timeout);
-//         if (ret == 0) {
-//             // char formatted_lat[20], formatted_lon[20];
-//             // // Format latitude and longitude with 6 decimal places
-//             // snprintf(formatted_lat, sizeof(formatted_lat), "%.6f", gps_data_main.latitude);
-//             // snprintf(formatted_lon, sizeof(formatted_lon), "%.6f", gps_data_main.longitude);
-
-//             LOG_INF("Received GPS data: %d, Latitude: %d, Longitude: %d", gps_data_main.good_data, (int)gps_data_main.latitude, (int)gps_data_main.longitude);
-//         } else {
-//             LOG_ERR("Failed to receive GPS data: %d", ret);
-//         }
-//     }
-
-//     return 0;
-// }
+K_THREAD_DEFINE(base_gps, T_BASE_GPS_STACKSIZE, base_gps_thread, NULL, NULL,
+                NULL, T_BASE_GPS_PRIORITY, 0, 0);

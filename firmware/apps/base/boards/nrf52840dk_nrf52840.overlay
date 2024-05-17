@@ -11,3 +11,17 @@
 	pinctrl-1 = <&uart1_sleep>;
 	pinctrl-names = "default", "sleep";
 };
+
+&i2c0 {
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+};
+
+&pinctrl {
+    i2c0_default: i2c0_default {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SDA, 0, 26)>,
+				<NRF_PSEL(TWIM_SCL, 0, 27)>;
+            bias-pull-up;
+		};
+	};
+};
