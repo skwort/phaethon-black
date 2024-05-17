@@ -182,10 +182,10 @@ static void ble_conn_recv(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 void base_bt_thread(void)
 {
     /* Initialise the module */
-    if (!base_bt_init()) {
-        LOG_ERR("BASE BT init failed.");
-        return;
-    }
+    // if (!base_bt_init()) {
+    //     LOG_ERR("BASE BT init failed.");
+    //     return;
+    // }
 
     /* Set the scan parameters */
     struct bt_le_scan_param scan_param = {

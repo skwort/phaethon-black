@@ -1,3 +1,4 @@
+#include "zephyr/logging/log_core.h"
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
@@ -17,24 +18,24 @@
 #include "base_gps.h"
 #include "phaethon.pb.h"
 
-LOG_MODULE_REGISTER(base_main);
-
+LOG_MODULE_REGISTER(base_main, LOG_LEVEL_INF);
 
 int main(void)
 {
     k_tid_t device_tid = k_current_get();
-    dlt_interface_init(1);
+    dlt_interface_init(2);
     dlt_device_register(device_tid);
 
     /* Connect to the Thingy52 */
     LOG_INF("Connecting to Thingy52");
-#ifdef CONFIG_SHELL_BACKEND_RTT
-    shell_execute_cmd(shell_backend_rtt_get_ptr(), "blecon -s c8:91:07:19:03:58");
-#else
-    shell_execute_cmd(shell_backend_uart_get_ptr(), "blecon -s c8:91:07:19:03:58");
-#endif
+// #ifdef CONFIG_SHELL_BACKEND_RTT
+//     shell_execute_cmd(shell_backend_rtt_get_ptr(), "blecon -s c8:91:07:19:03:58");
+// #else
+//     shell_execute_cmd(shell_backend_uart_get_ptr(), "blecon -s c8:91:07:19:03:58");
+// #endif
 
     uint8_t rx_data[DLT_MAX_DATA_LEN] = {0};
+    uint8_t tx_buf[DLT_MAX_DATA_LEN] = {0};
     uint8_t resp_len = 0;
     uint8_t msg_type = 0;
     wsu_data_packet pkt; 
@@ -72,6 +73,10 @@ int main(void)
             } else {
                 LOG_ERR("Decoding failed: %s\n", PB_GET_ERROR(&stream));
             }
+
+            /* Forward message */
+            LOG_INF("Forwarding packet to M5.");
+            dlt_request(M5_NUS, tx_buf, rx_data, resp_len, true);
         }
 
         /* Check IMU data */
