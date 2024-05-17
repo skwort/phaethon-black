@@ -60,7 +60,7 @@ extern int base_bt_wsu_data_recv(wsu_data_packet *pkt, k_timeout_t timeout)
     return k_msgq_get(&wsu_dataq, pkt, timeout);
 }
 
-/* Initialise Bluetooth */
+/* Initialise Bluetooth, this happens in dlt_nus_peripheral_link thread now */
 static inline bool base_bt_init(void)
 {
     int err = bt_enable(NULL);
@@ -181,12 +181,6 @@ static void ble_conn_recv(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 /* State machine which bakes the Bluetooth API cmds into transition logic. */
 void base_bt_thread(void)
 {
-    /* Initialise the module */
-    if (!base_bt_init()) {
-        LOG_ERR("BASE BT init failed.");
-        return;
-    }
-
     /* Set the scan parameters */
     struct bt_le_scan_param scan_param = {
         .type = BT_LE_SCAN_TYPE_PASSIVE,
