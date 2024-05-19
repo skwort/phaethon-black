@@ -13,7 +13,7 @@
 /* Timeout for UART DMA */
 #define DLT_UART_RX_TIMEOUT (10 * USEC_PER_MSEC)
 
-LOG_MODULE_REGISTER(dlt_uart_link, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(dlt_uart_link, LOG_LEVEL_ERR);
 
 /* UART DMA Semaphore for data reception */
 K_SEM_DEFINE(dlt_rx_sem, 0, 1);

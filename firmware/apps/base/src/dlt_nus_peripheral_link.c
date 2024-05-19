@@ -15,7 +15,7 @@
 #define DEVICE_NAME		CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN		(sizeof(DEVICE_NAME) - 1)
 
-LOG_MODULE_REGISTER(dlt_nus_link, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(dlt_nus_link, LOG_LEVEL_ERR);
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -101,9 +101,9 @@ void dlt_nus_peripheral_thread(void) {
 
             /* Transmit the DLT packet via UART */
             LOG_INF("Transmitting DLT packet.");
-            for (int i = 0; i < msg_len; i++) {
-                LOG_INF("  packet[%i]: %" PRIx8, i, dlt_recv_buf[i]);
-            }
+            // for (int i = 0; i < msg_len; i++) {
+            //     LOG_INF("  packet[%i]: %" PRIx8, i, dlt_recv_buf[i]);
+            // }
             err = bt_nus_send(NULL, dlt_recv_buf, msg_len);
             LOG_INF("Data send - Result: %d\n", err);
             if (err < 0 && (err != -EAGAIN) && (err != -ENOTCONN)) {

@@ -3,7 +3,7 @@
 
 #include "dlt_api.h"
 
-LOG_MODULE_REGISTER(dlt_api, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(dlt_api, LOG_LEVEL_ERR);
 
 /* Mailbox array for endpoints */
 struct k_mbox eps[DLT_MAX_ENDPOINTS];
